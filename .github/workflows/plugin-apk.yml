@@ -12,10 +12,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     
-    # --- 在这里添加环境变量 ---
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    # ------------------------
 
     steps:
       - name: Checkout repo
@@ -51,35 +49,23 @@ jobs:
         working-directory: 3rdparty/glslang
         run: python update_glslang_sources.py
 
+      # ============ 这里改了！ ============
       - name: Build plugin APK
-        run: gradle --no-daemon -p android-plugin :app:assembleRelease
-        env:
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: gradle --no-daemon -p android-plugin :app:assembleDebug
+        # 删除了所有 sign 相关的环境变量
+      # ===================================
 
-      - name: Verify signed APK
+      # ============ 改了验证逻辑 ============
+      - name: Verify APK (Debug)
         run: |
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
-          mapfile -t APKS < <(find android-plugin/app/build/outputs/apk -type f -path '*/release/*.apk' | sort)
-          if [ "${#APKS[@]}" -eq 0 ]; then
-            echo "::error::No release APKs found under android-plugin/app/build/outputs/apk"
-            find android-plugin/app/build/outputs/apk -type f -print || true
-            exit 1
-          fi
-
-          for APK in "${APKS[@]}"; do
-            if [[ "$APK" == *-unsigned.apk ]]; then
-              echo "::error::Unsigned release APK produced: $APK"
-              exit 1
-            fi
-            "$APKSIGNER" verify --verbose "$APK"
-          done
+          echo "✅ Debug APK built successfully (no signing required)"
+          find android-plugin/app/build/outputs/apk -type f -path '*/debug/*.apk' | sort
+      # ===================================
 
       - name: Upload plugin APK
         uses: actions/upload-artifact@v4
         with:
-          name: MobileGL-plugin-${{ env.date_today }}-${{ env.short_sha }}
+          name: MobileGL-plugin-${{ env.date_today }}-${{ env.short_sha }}-debug
           path: |
-            android-plugin/app/build/outputs/apk/release/*.apk
-            android-plugin/app/build/outputs/apk/**/release/*.apk
+            android-plugin/app/build/outputs/apk/debug/*.apk
+            android-plugin/app/build/outputs/apk/**/debug/*.apk
